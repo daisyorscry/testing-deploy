@@ -2,22 +2,31 @@ FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
+ENV CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    GO111MODULE=on \
+    GOFLAGS="-buildvcs=false"
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+RUN go build -o server -ldflags="-s -w" .
 
-FROM debian:bookworm-slim
+FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates tzdata && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache tzdata ca-certificates
 
-COPY --from=builder /app/server .
+ENV TZ=Asia/Jakarta
+
+COPY --from=builder /app/server /app/server
+
+RUN adduser -D -u 10001 appuser
+USER appuser
 
 EXPOSE 8777
 
